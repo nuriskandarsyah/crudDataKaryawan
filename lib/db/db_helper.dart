@@ -1,94 +1,69 @@
+import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
-class DBHelper {
-  static final DBHelper instance = DBHelper._init();
+class DatabaseHelper {
   static Database? _database;
 
-  DBHelper._init();
-
+  // Membuat instance database
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('flutter_crud.db');
-    return _database!;
+    if (_database != null) {
+      return _database!;
+    } else {
+      _database = await _initializeDatabase();
+      return _database!;
+    }
   }
 
-  Future<Database> _initDB(String fileName) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, fileName);
-
-    return await openDatabase(
+  // Membuat dan menginisialisasi database
+  Future<Database> _initializeDatabase() async {
+    String path = join(await getDatabasesPath(), 'notes.db');
+    return openDatabase(
       path,
       version: 1,
-      onCreate: _createDB,
+      onCreate: (db, version) {
+        return db.execute(
+          'CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, date TEXT, content TEXT)',
+        );
+      },
     );
   }
 
-  Future _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL,
-        password TEXT NOT NULL
-      )
-    ''');
+  // Menambahkan note baru
+  Future<void> addNote(String title, String date, String content) async {
+    final db = await database;
+    await db.insert(
+      'notes',
+      {'title': title, 'date': date, 'content': content},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future close() async {
-    final db = await instance.database;
-    db.close();
+  // Mengambil semua notes
+  Future<List<Map<String, dynamic>>> getAllNotes() async {
+    final db = await database;
+    return await db.query('notes');
   }
 
-Future<void> addUser(String username, String password) async {
-  final db = await instance.database;
+  // Mengupdate note berdasarkan id
+  Future<void> updateNote(
+      int id, String title, String date, String content) async {
+    final db = await database;
+    await db.update(
+      'notes',
+      {'title': title, 'date': date, 'content': content},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 
-  await db.insert(
-    'users',
-    {'username': username, 'password': password},
-    conflictAlgorithm: ConflictAlgorithm.replace,
-  );
+  // Menghapus note berdasarkan id
+  Future<void> deleteNote(int id) async {
+    final db = await database;
+    await db.delete(
+      'notes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
-
-  Future<List<Map<String, dynamic>>> getUsers() async {
-  final db = await instance.database;
-
-  return await db.query('users');
-}
-
-Future<void> updateUser(int id, String username, String password) async {
-  final db = await instance.database;
-
-  await db.update(
-    'users',
-    {'username': username, 'password': password},  // Update username dan password
-    where: 'id = ?',
-    whereArgs: [id],
-  );
-}
-
-
-Future<void> deleteUser(int id) async {
-  final db = await instance.database;
-
-  await db.delete(
-    'users',
-    where: 'id = ?',
-    whereArgs: [id],
-  );
-}
-
-Future<bool> login(String username, String password) async {
-  final db = await instance.database;
-
-  final result = await db.query(
-    'users',
-    where: 'username = ? AND password = ?',
-    whereArgs: [username, password],
-  );
-
-  return result.isNotEmpty;
-}
-
-}
-
-
